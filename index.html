@@ -9,17 +9,16 @@
   <meta name="referrer" content="no-referrer">
   <title>Melbourne Typewriter Clock</title>
   <link rel="stylesheet" href="style.css">
-  <link rel="stylesheet" href="bitter-font.css?v=20260804-enplug2">
-  <link rel="stylesheet" href="single-line-colours.css?v=20260804-enplug2">
+  <link rel="stylesheet" href="bitter-font.css?v=20260804-enplug3">
+  <link rel="stylesheet" href="single-line-colours.css?v=20260804-enplug3">
   <script>
     (() => {
-      const nativeGet = URLSearchParams.prototype.get;
-      const nativeHas = URLSearchParams.prototype.has;
-
-      URLSearchParams.prototype.get = function get(name) {
-        if (name === 'layout' && !nativeHas.call(this, 'layout')) return 'single';
-        return nativeGet.call(this, name);
-      };
+      const url = new URL(window.location.href);
+      if (!url.searchParams.has('layout')) {
+        url.searchParams.set('layout', 'single');
+        url.searchParams.set('build', 'enplug3');
+        window.location.replace(url.toString());
+      }
     })();
   </script>
 </head>
@@ -67,7 +66,7 @@
     </div>
   </main>
 
-  <script type="module" src="single-line-controller.js?v=20260804-enplug2"></script>
-  <script type="module" src="app.js?v=20260804-enplug2"></script>
+  <script type="module" src="single-line-controller.js?v=20260804-enplug3"></script>
+  <script type="module" src="app.js?v=20260804-enplug3"></script>
 </body>
 </html>
