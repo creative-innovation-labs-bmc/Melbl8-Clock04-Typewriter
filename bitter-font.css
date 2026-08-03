@@ -1,0 +1,13 @@
+@font-face {
+  font-family: "Bitter Clock";
+  src: url("./assets/Bitter-Bold.woff2?v=20260804") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+body,
+.message-line {
+  font-family: "Bitter Clock", Georgia, serif;
+  font-weight: 700;
+}
