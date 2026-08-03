@@ -1,109 +1,124 @@
 const params = new URLSearchParams(window.location.search);
 
 if (params.get('layout') === 'single') {
-  const SAFE_CONTENT_WIDTH = 3520;
-  const FIT_GUARD = 10;
-  const MIN_FONT_SIZE = 72;
-  const MAX_FONT_SIZE = 410;
-  const CURSOR_FIXED_WIDTH = 12;
-  const CURSOR_EM_ALLOWANCE = 0.14;
+  const LEAD_INS = Object.freeze([
+    'The time now is',
+    'Right now, it is',
+    'At this moment, it is',
+    'The current time is',
+    'Here in Melbourne, it is',
+    'Melbourne time is',
+    'The clock says',
+    'It is currently',
+    'As of now, it is'
+  ]);
 
-  const frame = document.querySelector('#messageFrame');
-  const line = document.querySelector('#singleLine');
+  const stage = document.querySelector('#stage');
+  const measure = document.querySelector('#messageMeasure');
   const before = document.querySelector('#singleBeforeCursor');
   const after = document.querySelector('#singleAfterCursor');
-  const measure = document.querySelector('#messageMeasure');
+  const line = document.querySelector('#singleLine');
 
-  let fitTimer = 0;
+  // Phone previews scale the complete 3840px stage with a CSS transform.
+  // getBoundingClientRect() reports that transformed width, while app.js needs
+  // native stage units to choose the final font size before typing begins.
+  // Patch only the hidden measuring element and do it before app.js executes.
+  const originalMeasureRect = measure.getBoundingClientRect.bind(measure);
+  measure.getBoundingClientRect = () => {
+    const rect = originalMeasureRect();
+    const width = measure.scrollWidth;
+    return {
+      x: rect.x,
+      y: rect.y,
+      top: rect.top,
+      right: rect.left + width,
+      bottom: rect.bottom,
+      left: rect.left,
+      width,
+      height: rect.height,
+      toJSON() {
+        return {
+          x: this.x,
+          y: this.y,
+          top: this.top,
+          right: this.right,
+          bottom: this.bottom,
+          left: this.left,
+          width: this.width,
+          height: this.height
+        };
+      }
+    };
+  };
 
-  frame.style.overflow = 'hidden';
-  frame.style.transition = 'none';
   line.style.maxWidth = 'none';
   line.style.flexShrink = '0';
   measure.style.maxWidth = 'none';
 
-  function visibleText() {
-    return `${before.textContent ?? ''}${after.textContent ?? ''}`;
+  function sentenceCase(text) {
+    if (!text) return '';
+    const lower = text.toLocaleLowerCase('en-AU');
+    return lower[0].toLocaleUpperCase('en-AU') + lower.slice(1);
   }
 
-  function applySingleSentenceCase() {
-    const beforeText = before.textContent ?? '';
-    const fullText = `${beforeText}${after.textContent ?? ''}`;
-    if (!fullText) return;
-
-    const lower = fullText.toLocaleLowerCase('en-AU');
-    const sentence = lower[0].toLocaleUpperCase('en-AU') + lower.slice(1);
-    const splitAt = beforeText.length;
-    const nextBefore = sentence.slice(0, splitAt);
-    const nextAfter = sentence.slice(splitAt);
-
-    if (before.textContent !== nextBefore) before.textContent = nextBefore;
-    if (after.textContent !== nextAfter) after.textContent = nextAfter;
+  function findTimeStart(text) {
+    const lower = text.toLocaleLowerCase('en-AU');
+    const lead = LEAD_INS.find((candidate) =>
+      lower.startsWith(`${candidate.toLocaleLowerCase('en-AU')} `)
+    );
+    return lead ? lead.length + 1 : Number.POSITIVE_INFINITY;
   }
 
-  function measuredWidth(text, fontSize) {
-    measure.style.fontSize = `${fontSize}px`;
-    measure.textContent = text || ' ';
-    return measure.scrollWidth
-      + CURSOR_FIXED_WIDTH
-      + fontSize * CURSOR_EM_ALLOWANCE;
+  function makeFragment(className, text) {
+    const span = document.createElement('span');
+    span.className = className;
+    span.textContent = text;
+    return span;
   }
 
-  function fitVisibleLine() {
-    applySingleSentenceCase();
-    const text = visibleText();
-    if (!text) return;
+  function decorateSegment(element, text, absoluteStart, timeStart) {
+    const key = `${absoluteStart}|${timeStart}|${text}`;
+    if (element.dataset.decoratedKey === key && element.textContent === text) return;
 
-    const targetWidth = SAFE_CONTENT_WIDTH - FIT_GUARD;
-    let low = MIN_FONT_SIZE;
-    let high = MAX_FONT_SIZE;
+    const absoluteEnd = absoluteStart + text.length;
+    const fragment = document.createDocumentFragment();
 
-    for (let pass = 0; pass < 20; pass += 1) {
-      const mid = (low + high) / 2;
-      if (measuredWidth(text, mid) <= targetWidth) low = mid;
-      else high = mid;
+    if (absoluteEnd <= timeStart) {
+      fragment.append(makeFragment('single-lead-fragment', text));
+    } else if (absoluteStart >= timeStart) {
+      fragment.append(makeFragment('single-time-fragment', text));
+    } else {
+      const localSplit = Math.max(0, timeStart - absoluteStart);
+      fragment.append(makeFragment('single-lead-fragment', text.slice(0, localSplit)));
+      fragment.append(makeFragment('single-time-fragment', text.slice(localSplit)));
     }
 
-    frame.style.setProperty('--message-font-size', `${low.toFixed(2)}px`);
+    element.replaceChildren(fragment);
+    element.dataset.decoratedKey = key;
   }
 
-  function scheduleFit(delay = 140) {
-    window.clearTimeout(fitTimer);
-    fitTimer = window.setTimeout(() => {
-      window.requestAnimationFrame(() => {
-        window.requestAnimationFrame(fitVisibleLine);
-      });
-    }, delay);
+  function decorateVisibleText() {
+    const rawBefore = before.textContent ?? '';
+    const rawAfter = after.textContent ?? '';
+    const splitAt = rawBefore.length;
+    const fullText = sentenceCase(`${rawBefore}${rawAfter}`);
+    const timeStart = findTimeStart(fullText);
+
+    decorateSegment(before, fullText.slice(0, splitAt), 0, timeStart);
+    decorateSegment(after, fullText.slice(splitAt), splitAt, timeStart);
   }
 
-  const observer = new MutationObserver(() => {
-    applySingleSentenceCase();
-    scheduleFit();
-  });
-
+  const observer = new MutationObserver(decorateVisibleText);
   observer.observe(before, { childList: true, characterData: true, subtree: true });
   observer.observe(after, { childList: true, characterData: true, subtree: true });
 
-  function handleViewportChange() {
-    scheduleFit(0);
-  }
+  decorateVisibleText();
 
-  window.addEventListener('resize', handleViewportChange, { passive: true });
-  window.addEventListener('orientationchange', handleViewportChange, { passive: true });
-  window.visualViewport?.addEventListener('resize', handleViewportChange, { passive: true });
-
-  document.addEventListener('visibilitychange', () => {
-    if (!document.hidden) scheduleFit(0);
+  window.__singleLineController = Object.freeze({
+    get stageScale() {
+      const rect = stage.getBoundingClientRect();
+      return rect.width / 3840;
+    },
+    decorateVisibleText
   });
-
-  if (document.fonts) {
-    document.fonts
-      .load('220px "MP-B"', 'The time now is twenty-nine minutes past eleven')
-      .then(() => scheduleFit(0))
-      .catch(() => scheduleFit(0));
-
-    document.fonts.addEventListener?.('loadingdone', () => scheduleFit(0));
-  }
-
-  scheduleFit(0);
 }
