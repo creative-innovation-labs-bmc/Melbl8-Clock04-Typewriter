@@ -14,25 +14,28 @@
     <section id="stage" aria-label="The current time in Melbourne">
       <div class="safe-area" aria-hidden="true"></div>
 
-      <header class="heading-row">
-        <p class="eyebrow">THE TIME NOW IS</p>
-        <p id="modeLabel" class="mode-label" hidden>DEMO</p>
-      </header>
-
-      <div id="phraseFrame" class="phrase-frame">
-        <div id="phrase" class="phrase" role="timer" aria-live="polite" aria-atomic="true">
-          <span id="beforeCursor"></span><span id="cursor" class="cursor" aria-hidden="true"></span><span id="afterCursor"></span>
+      <div id="messageFrame" class="message-frame">
+        <div id="leadLine" class="message-line lead-line" aria-hidden="true">
+          <span id="leadBeforeCursor"></span><span id="leadCursor" class="cursor" hidden></span><span id="leadAfterCursor"></span>
         </div>
-        <div id="phraseMeasure" class="phrase phrase-measure" aria-hidden="true"></div>
+
+        <div id="timeLine" class="message-line time-line" role="timer" aria-live="polite" aria-atomic="true">
+          <span id="timeBeforeCursor"></span><span id="timeCursor" class="cursor" aria-hidden="true" hidden></span><span id="timeAfterCursor"></span>
+        </div>
+
+        <div id="messageMeasure" class="message-line message-measure" aria-hidden="true"></div>
       </div>
 
       <footer class="footer-row">
         <div class="location-block">
-          <span class="location">MELBOURNE</span>
+          <span class="location">Melbourne</span>
           <span class="separator" aria-hidden="true">·</span>
           <span id="dateLabel" class="date-label"></span>
         </div>
-        <div id="statusLabel" class="status-label" aria-hidden="true">LIVE</div>
+        <div class="status-block">
+          <span id="modeLabel" class="mode-label" hidden>Demo</span>
+          <span id="statusLabel" class="status-label">Live</span>
+        </div>
       </footer>
 
       <div class="progress-track" aria-hidden="true">

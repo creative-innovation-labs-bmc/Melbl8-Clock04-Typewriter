@@ -1,20 +1,24 @@
 const SMALL_NUMBERS = Object.freeze([
-  'ZERO', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX', 'SEVEN', 'EIGHT', 'NINE',
-  'TEN', 'ELEVEN', 'TWELVE', 'THIRTEEN', 'FOURTEEN', 'FIFTEEN', 'SIXTEEN',
-  'SEVENTEEN', 'EIGHTEEN', 'NINETEEN'
+  'zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
+  'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
+  'seventeen', 'eighteen', 'nineteen'
 ]);
 
 const TENS = Object.freeze({
-  20: 'TWENTY',
-  30: 'THIRTY',
-  40: 'FORTY',
-  50: 'FIFTY'
+  20: 'twenty',
+  30: 'thirty',
+  40: 'forty',
+  50: 'fifty'
 });
 
 const HOUR_WORDS = Object.freeze([
-  'TWELVE', 'ONE', 'TWO', 'THREE', 'FOUR', 'FIVE', 'SIX',
-  'SEVEN', 'EIGHT', 'NINE', 'TEN', 'ELEVEN'
+  'twelve', 'one', 'two', 'three', 'four', 'five', 'six',
+  'seven', 'eight', 'nine', 'ten', 'eleven'
 ]);
+
+function sentenceCase(value) {
+  return value ? value[0].toUpperCase() + value.slice(1) : value;
+}
 
 export function numberToWords(value) {
   if (!Number.isInteger(value) || value < 0 || value > 59) {
@@ -42,27 +46,31 @@ export function timeToPhrase(hour24, minute) {
     throw new RangeError(`minute must be 0 to 59, received ${minute}`);
   }
 
+  let phrase;
+
   if (minute === 0) {
-    if (hour24 === 0) return 'MIDNIGHT';
-    if (hour24 === 12) return 'NOON';
-    return `${hourToWords(hour24)} O'CLOCK`;
+    if (hour24 === 0) phrase = 'midnight';
+    else if (hour24 === 12) phrase = 'noon';
+    else phrase = `${hourToWords(hour24)} o'clock`;
+    return sentenceCase(phrase);
   }
 
   const thisHour = hourToWords(hour24);
   const nextHour = hourToWords((hour24 + 1) % 24);
 
-  if (minute === 15) return `QUARTER PAST ${thisHour}`;
-  if (minute === 30) return `HALF PAST ${thisHour}`;
-  if (minute === 45) return `QUARTER TO ${nextHour}`;
-
-  if (minute < 30) {
-    const unit = minute === 1 ? 'MINUTE' : 'MINUTES';
-    return `${numberToWords(minute)} ${unit} PAST ${thisHour}`;
+  if (minute === 15) phrase = `quarter past ${thisHour}`;
+  else if (minute === 30) phrase = `half past ${thisHour}`;
+  else if (minute === 45) phrase = `quarter to ${nextHour}`;
+  else if (minute < 30) {
+    const unit = minute === 1 ? 'minute' : 'minutes';
+    phrase = `${numberToWords(minute)} ${unit} past ${thisHour}`;
+  } else {
+    const remaining = 60 - minute;
+    const unit = remaining === 1 ? 'minute' : 'minutes';
+    phrase = `${numberToWords(remaining)} ${unit} to ${nextHour}`;
   }
 
-  const remaining = 60 - minute;
-  const unit = remaining === 1 ? 'MINUTE' : 'MINUTES';
-  return `${numberToWords(remaining)} ${unit} TO ${nextHour}`;
+  return sentenceCase(phrase);
 }
 
 export function buildEditPlan(currentText, targetText) {
@@ -134,6 +142,6 @@ export function getMelbourneParts(date = new Date()) {
     year: parts.year,
     phrase: timeToPhrase(hour, minute),
     minuteKey: `${parts.year}-${parts.month}-${parts.day}-${parts.hour}-${parts.minute}`,
-    dateLabel: `${parts.weekday} ${parts.day} ${parts.month} ${parts.year}`.toUpperCase()
+    dateLabel: `${parts.weekday} ${parts.day} ${parts.month} ${parts.year}`
   };
 }

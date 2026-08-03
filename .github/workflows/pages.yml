@@ -22,9 +22,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Build static site with the approved clock font
+        run: |
+          mkdir -p _site/assets
+          rsync -a --exclude '.git' --exclude '_site' ./ _site/
+          curl --fail --location --retry 3 \
+            https://raw.githubusercontent.com/creative-innovation-labs-bmc/Melbl8-Clock03-Split-flap/main/MP-B.ttf \
+            --output _site/assets/MP-B.ttf
+          test -s _site/assets/MP-B.ttf
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: .
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4

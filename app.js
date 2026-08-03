@@ -3,6 +3,21 @@ import { buildEditPlan, getMelbourneParts, timeToPhrase } from './clock-core.js'
 const STAGE_WIDTH = 3840;
 const STAGE_HEIGHT = 804;
 const SAFE_CONTENT_WIDTH = STAGE_WIDTH - 320;
+const BASE_MESSAGE_FONT_SIZE = 196;
+const MIN_MESSAGE_FONT_SIZE = 118;
+const CURSOR_ALLOWANCE = 54;
+
+const LEAD_INS = Object.freeze([
+  'The time now is',
+  'Right now, it is',
+  'At this moment, it is',
+  'The current time is',
+  'Here in Melbourne, it is',
+  'Melbourne time is',
+  'The clock says',
+  'It is currently',
+  'As of now, it is'
+]);
 
 const params = new URLSearchParams(window.location.search);
 const demoMode = params.get('demo') === '1';
@@ -12,29 +27,45 @@ const previewTime = parsePreviewTime(params.get('time'));
 const demoInterval = clamp(Number(params.get('interval')) || 5000, 1800, 30000);
 
 const timings = Object.freeze({
-  initialType: 32,
+  initialType: 31,
   cursorTravel: 10,
   delete: 34,
-  type: 42,
+  type: 41,
   settle: 90
 });
 
 const stage = document.querySelector('#stage');
-const beforeCursor = document.querySelector('#beforeCursor');
-const afterCursor = document.querySelector('#afterCursor');
-const cursor = document.querySelector('#cursor');
-const phrase = document.querySelector('#phrase');
-const phraseMeasure = document.querySelector('#phraseMeasure');
+const messageFrame = document.querySelector('#messageFrame');
+const messageMeasure = document.querySelector('#messageMeasure');
 const dateLabel = document.querySelector('#dateLabel');
 const progressFill = document.querySelector('#progressFill');
 const rotatePrompt = document.querySelector('#rotatePrompt');
 const modeLabel = document.querySelector('#modeLabel');
 const statusLabel = document.querySelector('#statusLabel');
 
-let renderedText = '';
+const lines = Object.freeze({
+  lead: {
+    root: document.querySelector('#leadLine'),
+    before: document.querySelector('#leadBeforeCursor'),
+    cursor: document.querySelector('#leadCursor'),
+    after: document.querySelector('#leadAfterCursor'),
+    rendered: ''
+  },
+  time: {
+    root: document.querySelector('#timeLine'),
+    before: document.querySelector('#timeBeforeCursor'),
+    cursor: document.querySelector('#timeCursor'),
+    after: document.querySelector('#timeAfterCursor'),
+    rendered: ''
+  }
+});
+
 let activeMinuteKey = '';
+let requestedMinuteKey = '';
 let animationToken = 0;
 let queuedState = null;
+let leadDeck = [];
+let previousLead = '';
 let demoHour = previewTime?.hour ?? 18;
 let demoMinute = previewTime?.minute ?? 6;
 let demoSeconds = 0;
@@ -43,7 +74,7 @@ let demoLastAdvance = performance.now();
 if (debugMode) document.body.classList.add('debug');
 if (demoMode) {
   modeLabel.hidden = false;
-  statusLabel.textContent = 'PREVIEW';
+  statusLabel.textContent = 'Preview';
 }
 
 function clamp(value, min, max) {
@@ -66,6 +97,7 @@ function sleep(ms, token) {
       if (token !== animationToken) reject(new DOMException('Superseded', 'AbortError'));
       else resolve();
     }, ms);
+
     if (token !== animationToken) {
       window.clearTimeout(timer);
       reject(new DOMException('Superseded', 'AbortError'));
@@ -73,103 +105,144 @@ function sleep(ms, token) {
   });
 }
 
-function setCursorState(isWorking) {
-  cursor.classList.toggle('is-working', isWorking);
-  cursor.classList.toggle('is-blinking', !isWorking);
+function shuffle(values) {
+  const result = [...values];
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(Math.random() * (index + 1));
+    [result[index], result[swapIndex]] = [result[swapIndex], result[index]];
+  }
+  return result;
 }
 
-function renderSegments(before, after) {
-  beforeCursor.textContent = before;
-  afterCursor.textContent = after;
+function refillLeadDeck() {
+  leadDeck = shuffle(LEAD_INS);
+  if (leadDeck.length > 1 && leadDeck[0] === previousLead) {
+    [leadDeck[0], leadDeck[1]] = [leadDeck[1], leadDeck[0]];
+  }
 }
 
-function measureText(text) {
-  phraseMeasure.textContent = text || ' ';
-  return phraseMeasure.getBoundingClientRect().width;
+function nextLeadIn() {
+  if (leadDeck.length === 0) refillLeadDeck();
+  previousLead = leadDeck.shift();
+  return previousLead;
 }
 
-function fitPhrase(...texts) {
-  const widest = Math.max(...texts.filter(Boolean).map(measureText), 1);
+function setActiveCursor(lineName, isWorking) {
+  for (const [name, line] of Object.entries(lines)) {
+    const isActive = name === lineName;
+    line.cursor.hidden = !isActive;
+    line.cursor.classList.toggle('is-working', isActive && isWorking);
+    line.cursor.classList.toggle('is-blinking', isActive && !isWorking);
+  }
+}
+
+function renderLine(lineName, before, after) {
+  const line = lines[lineName];
+  line.before.textContent = before;
+  line.after.textContent = after;
+}
+
+function measureTextAtBase(text) {
+  messageMeasure.style.fontSize = `${BASE_MESSAGE_FONT_SIZE}px`;
+  messageMeasure.textContent = text || ' ';
+  return messageMeasure.getBoundingClientRect().width;
+}
+
+function fitMessage(...texts) {
+  const candidates = texts.filter((text) => typeof text === 'string' && text.length > 0);
+  const widest = Math.max(...candidates.map(measureTextAtBase), 1) + CURSOR_ALLOWANCE;
   const scale = Math.min(1, SAFE_CONTENT_WIDTH / widest);
-  phrase.style.setProperty('--phrase-scale', String(Math.max(0.68, scale)));
+  const fontSize = clamp(Math.floor(BASE_MESSAGE_FONT_SIZE * scale), MIN_MESSAGE_FONT_SIZE, BASE_MESSAGE_FONT_SIZE);
+  messageFrame.style.setProperty('--message-font-size', `${fontSize}px`);
+  return fontSize;
 }
 
-async function typeInitial(target, token) {
-  setCursorState(true);
-  renderSegments('', '');
-  fitPhrase(target);
+async function typeInitialLine(lineName, target, token) {
+  const line = lines[lineName];
+  setActiveCursor(lineName, true);
+  renderLine(lineName, '', '');
 
   if (noAnimation || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    renderSegments(target, '');
-    renderedText = target;
-    setCursorState(false);
+    renderLine(lineName, target, '');
+    line.rendered = target;
     return;
   }
 
   let typed = '';
   for (const character of target) {
     typed += character;
-    renderSegments(typed, '');
+    renderLine(lineName, typed, '');
     await sleep(timings.initialType, token);
   }
-  renderedText = target;
+
+  line.rendered = target;
   await sleep(timings.settle, token);
-  setCursorState(false);
 }
 
-async function editTo(target, token) {
-  if (target === renderedText) return;
-  if (!renderedText) {
-    await typeInitial(target, token);
+async function editLine(lineName, target, token) {
+  const line = lines[lineName];
+  if (target === line.rendered) return;
+  if (!line.rendered) {
+    await typeInitialLine(lineName, target, token);
     return;
   }
+
+  setActiveCursor(lineName, true);
 
   if (noAnimation || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    renderSegments(target, '');
-    renderedText = target;
-    fitPhrase(target);
-    setCursorState(false);
+    renderLine(lineName, target, '');
+    line.rendered = target;
     return;
   }
 
-  const plan = buildEditPlan(renderedText, target);
-  fitPhrase(renderedText, target);
-  setCursorState(true);
-
-  let before = renderedText;
+  const plan = buildEditPlan(line.rendered, target);
+  let before = line.rendered;
   let after = '';
 
   for (let index = 0; index < plan.cursorTravelLeft; index += 1) {
     after = before.slice(-1) + after;
     before = before.slice(0, -1);
-    renderSegments(before, after);
+    renderLine(lineName, before, after);
     await sleep(timings.cursorTravel, token);
   }
 
   for (let index = 0; index < plan.deleteCount; index += 1) {
     before = before.slice(0, -1);
-    renderSegments(before, after);
+    renderLine(lineName, before, after);
     await sleep(timings.delete, token);
   }
 
   for (const character of plan.targetMiddle) {
     before += character;
-    renderSegments(before, after);
+    renderLine(lineName, before, after);
     await sleep(timings.type, token);
   }
 
   while (after.length > 0) {
     before += after[0];
     after = after.slice(1);
-    renderSegments(before, after);
+    renderLine(lineName, before, after);
     await sleep(timings.cursorTravel, token);
   }
 
-  renderedText = target;
-  renderSegments(target, '');
-  fitPhrase(target);
+  line.rendered = target;
+  renderLine(lineName, target, '');
   await sleep(timings.settle, token);
-  setCursorState(false);
+}
+
+async function editMessage(targetLead, targetTime, token) {
+  fitMessage(lines.lead.rendered, targetLead, lines.time.rendered, targetTime);
+
+  if (!lines.lead.rendered && !lines.time.rendered) {
+    await typeInitialLine('lead', targetLead, token);
+    await typeInitialLine('time', targetTime, token);
+  } else {
+    await editLine('lead', targetLead, token);
+    await editLine('time', targetTime, token);
+  }
+
+  fitMessage(targetLead, targetTime);
+  setActiveCursor('time', false);
 }
 
 function getDemoState(now) {
@@ -183,17 +256,14 @@ function getDemoState(now) {
   }
 
   demoSeconds = Math.floor(((now - demoLastAdvance) / demoInterval) * 60) % 60;
-  const syntheticDate = new Date(Date.UTC(2026, 7, 3, demoHour, demoMinute, demoSeconds));
-  const phraseText = timeToPhrase(demoHour, demoMinute);
 
   return {
     hour: demoHour,
     minute: demoMinute,
     second: demoSeconds,
-    phrase: phraseText,
+    phrase: timeToPhrase(demoHour, demoMinute),
     minuteKey: `demo-${demoHour}-${demoMinute}`,
-    dateLabel: 'MONDAY 03 AUGUST 2026',
-    syntheticDate
+    dateLabel: 'Monday 03 August 2026'
   };
 }
 
@@ -204,7 +274,7 @@ function getPreviewState() {
     second: 0,
     phrase: timeToPhrase(previewTime.hour, previewTime.minute),
     minuteKey: `preview-${previewTime.hour}-${previewTime.minute}`,
-    dateLabel: 'MONDAY 03 AUGUST 2026'
+    dateLabel: 'Monday 03 August 2026'
   };
 }
 
@@ -214,25 +284,26 @@ function getCurrentState(now = performance.now()) {
   return getMelbourneParts(new Date());
 }
 
-async function requestPhraseUpdate(state) {
+async function requestMessageUpdate(state) {
   queuedState = state;
-  if (phrase.dataset.busy === 'true') return;
+  if (messageFrame.dataset.busy === 'true') return;
 
-  phrase.dataset.busy = 'true';
+  messageFrame.dataset.busy = 'true';
   try {
     while (queuedState) {
       const next = queuedState;
       queuedState = null;
       const token = ++animationToken;
+
       try {
-        await editTo(next.phrase, token);
+        await editMessage(next.leadIn, next.phrase, token);
         activeMinuteKey = next.minuteKey;
       } catch (error) {
         if (error?.name !== 'AbortError') throw error;
       }
     }
   } finally {
-    phrase.dataset.busy = 'false';
+    messageFrame.dataset.busy = 'false';
   }
 }
 
@@ -243,8 +314,9 @@ function updateClock(now = performance.now()) {
   const secondProgress = clamp((state.second + (demoMode ? 0 : (Date.now() % 1000) / 1000)) / 60, 0, 1);
   progressFill.style.transform = `scaleX(${secondProgress})`;
 
-  if (state.minuteKey !== activeMinuteKey) {
-    requestPhraseUpdate(state);
+  if (state.minuteKey !== requestedMinuteKey) {
+    requestedMinuteKey = state.minuteKey;
+    requestMessageUpdate({ ...state, leadIn: nextLeadIn() });
   }
 }
 
@@ -271,14 +343,19 @@ window.visualViewport?.addEventListener('resize', scaleStage, { passive: true })
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden) {
     activeMinuteKey = '';
+    requestedMinuteKey = '';
     updateClock();
     scaleStage();
   }
 });
 
 window.__clock = Object.freeze({
-  get renderedText() { return renderedText; },
+  get renderedText() { return lines.time.rendered; },
+  get leadText() { return lines.lead.rendered; },
   get activeMinuteKey() { return activeMinuteKey; },
+  get messageFontSize() {
+    return Number.parseFloat(getComputedStyle(messageFrame).getPropertyValue('--message-font-size'));
+  },
   get stageScale() {
     const transform = stage.style.transform;
     const match = /scale\(([^)]+)\)/.exec(transform);
@@ -286,12 +363,33 @@ window.__clock = Object.freeze({
   },
   forcePhrase: async (target) => {
     const token = ++animationToken;
-    await editTo(String(target), token);
+    fitMessage(lines.lead.rendered, lines.time.rendered, String(target));
+    await editLine('time', String(target), token);
+    setActiveCursor('time', false);
+  },
+  forceLead: async (target) => {
+    const token = ++animationToken;
+    fitMessage(lines.lead.rendered, String(target), lines.time.rendered);
+    await editLine('lead', String(target), token);
+    setActiveCursor('time', false);
   },
   timeToPhrase
 });
 
-scaleStage();
-setCursorState(true);
-updateClock();
-window.requestAnimationFrame(animationLoop);
+async function startClock() {
+  scaleStage();
+  setActiveCursor('lead', true);
+
+  if (document.fonts?.ready) {
+    try {
+      await document.fonts.ready;
+    } catch {
+      // Use the fallback font if the local face cannot be loaded.
+    }
+  }
+
+  updateClock();
+  window.requestAnimationFrame(animationLoop);
+}
+
+startClock();
