@@ -22,12 +22,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build static site with Bitter Bold
+      - name: Build Enplug static site with Bitter Bold
         run: |
           mkdir -p _site/assets
-          rsync -a --exclude '.git' --exclude '_site' --exclude 'font' ./ _site/
+          rsync -a \
+            --exclude '.git' \
+            --exclude '_site' \
+            --exclude 'font' \
+            --exclude '*.b64' \
+            --exclude 'tests' \
+            --exclude 'qc-output' \
+            --exclude 'package.json' \
+            --exclude 'package-lock.json' \
+            ./ _site/
           base64 --decode font/Bitter-Bold.woff2.b64 > _site/assets/Bitter-Bold.woff2
           test -s _site/assets/Bitter-Bold.woff2
+          test -s _site/index.html
+          test -s _site/robots.txt
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:
