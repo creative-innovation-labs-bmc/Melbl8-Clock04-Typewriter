@@ -1,0 +1,254 @@
+:root {
+  --stage-width: 3840px;
+  --stage-height: 804px;
+  --background: #373A36;
+  --text: #F4F2EA;
+  --muted: rgba(244, 242, 234, 0.58);
+  --faint: rgba(244, 242, 234, 0.18);
+  --accent: #89C925;
+  --safe-x: 160px;
+  --cursor-width: 12px;
+  --phrase-scale: 1;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: #171817;
+}
+
+body {
+  font-family: Roboto, Arial, Helvetica, sans-serif;
+  color: var(--text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
+}
+
+#viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  background: #171817;
+}
+
+#stage {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: var(--stage-width);
+  height: var(--stage-height);
+  overflow: hidden;
+  transform-origin: center center;
+  background: var(--background);
+  contain: layout paint style;
+}
+
+.heading-row {
+  position: absolute;
+  top: 106px;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.eyebrow,
+.mode-label,
+.location-block,
+.status-label {
+  margin: 0;
+  font-weight: 700;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+}
+
+.eyebrow {
+  font-size: 50px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.mode-label {
+  font-size: 30px;
+  color: var(--accent);
+}
+
+.phrase-frame {
+  position: absolute;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  top: 242px;
+  height: 260px;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.phrase {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-width: 1px;
+  white-space: pre;
+  font-size: 202px;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.045em;
+  font-variant-ligatures: none;
+  transform: scaleX(var(--phrase-scale));
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.phrase-measure {
+  position: absolute;
+  left: -100000px;
+  top: 0;
+  visibility: hidden;
+  transform: none;
+  pointer-events: none;
+}
+
+.cursor {
+  display: inline-block;
+  width: var(--cursor-width);
+  height: 0.82em;
+  margin-left: 10px;
+  margin-right: 10px;
+  background: var(--accent);
+  opacity: 1;
+  transform: translateY(0.04em);
+}
+
+.cursor.is-blinking {
+  animation: cursor-blink 1s steps(1, end) infinite;
+}
+
+.cursor.is-working {
+  animation: none;
+  opacity: 1;
+}
+
+@keyframes cursor-blink {
+  0%, 48% { opacity: 1; }
+  49%, 100% { opacity: 0; }
+}
+
+.footer-row {
+  position: absolute;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  bottom: 84px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.location-block,
+.status-label {
+  font-size: 31px;
+  line-height: 1;
+  color: var(--muted);
+}
+
+.location {
+  color: var(--text);
+}
+
+.separator {
+  display: inline-block;
+  margin: 0 22px;
+  color: var(--accent);
+}
+
+.status-label {
+  color: var(--muted);
+}
+
+.progress-track {
+  position: absolute;
+  left: var(--safe-x);
+  right: var(--safe-x);
+  bottom: 48px;
+  height: 4px;
+  overflow: hidden;
+  background: var(--faint);
+}
+
+.progress-fill {
+  width: 100%;
+  height: 100%;
+  background: var(--accent);
+  transform: scaleX(0);
+  transform-origin: left center;
+  will-change: transform;
+}
+
+.safe-area {
+  display: none;
+  position: absolute;
+  inset: 36px var(--safe-x);
+  border: 2px solid rgba(137, 201, 37, 0.58);
+  pointer-events: none;
+}
+
+body.debug .safe-area {
+  display: block;
+}
+
+body.debug #stage::after {
+  content: "3840 × 804";
+  position: absolute;
+  top: 22px;
+  right: 28px;
+  padding: 8px 12px;
+  border: 1px solid rgba(244, 242, 234, 0.28);
+  color: rgba(244, 242, 234, 0.72);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+}
+
+.rotate-prompt {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-content: center;
+  gap: 14px;
+  padding: 34px;
+  text-align: center;
+  background: rgba(23, 24, 23, 0.94);
+  color: var(--text);
+  font-size: 18px;
+  line-height: 1.35;
+  letter-spacing: 0.02em;
+}
+
+.rotate-prompt[hidden] {
+  display: none;
+}
+
+.rotate-prompt p {
+  max-width: 280px;
+  margin: 0;
+}
+
+.rotate-icon {
+  color: var(--accent);
+  font-size: 42px;
+  line-height: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor.is-blinking {
+    animation-duration: 1.8s;
+  }
+}

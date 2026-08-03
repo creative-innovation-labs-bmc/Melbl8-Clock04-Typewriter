@@ -1,0 +1,10 @@
+{
+  "name": "melbl8-clock04-typewriter",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "test:browser": "python3 tests/browser-qc.py"
+  }
+}
