@@ -5,7 +5,12 @@ const STAGE_HEIGHT = 804;
 const SAFE_CONTENT_WIDTH = STAGE_WIDTH - 320;
 const BASE_MESSAGE_FONT_SIZE = 196;
 const MIN_MESSAGE_FONT_SIZE = 118;
+const SINGLE_BASE_FONT_SIZE = 220;
+const SINGLE_MIN_FONT_SIZE = 96;
+const SINGLE_MAX_FONT_SIZE = 410;
 const CURSOR_ALLOWANCE = 54;
+const SINGLE_CURSOR_FIXED_WIDTH = 12;
+const SINGLE_CURSOR_EM_ALLOWANCE = 0.14;
 
 const LEAD_INS = Object.freeze([
   'The time now is',
@@ -23,6 +28,7 @@ const params = new URLSearchParams(window.location.search);
 const demoMode = params.get('demo') === '1';
 const noAnimation = params.get('noanim') === '1';
 const debugMode = params.get('debug') === '1';
+const singleLayout = params.get('layout') === 'single';
 const previewTime = parsePreviewTime(params.get('time'));
 const demoInterval = clamp(Number(params.get('interval')) || 5000, 1800, 30000);
 
@@ -57,6 +63,13 @@ const lines = Object.freeze({
     cursor: document.querySelector('#timeCursor'),
     after: document.querySelector('#timeAfterCursor'),
     rendered: ''
+  },
+  single: {
+    root: document.querySelector('#singleLine'),
+    before: document.querySelector('#singleBeforeCursor'),
+    cursor: document.querySelector('#singleCursor'),
+    after: document.querySelector('#singleAfterCursor'),
+    rendered: ''
   }
 });
 
@@ -66,12 +79,18 @@ let animationToken = 0;
 let queuedState = null;
 let leadDeck = [];
 let previousLead = '';
+let currentLeadText = '';
+let currentTimeText = '';
 let demoHour = previewTime?.hour ?? 18;
 let demoMinute = previewTime?.minute ?? 6;
 let demoSeconds = 0;
 let demoLastAdvance = performance.now();
 
 if (debugMode) document.body.classList.add('debug');
+if (singleLayout) {
+  document.body.classList.add('layout-single');
+  lines.single.root.hidden = false;
+}
 if (demoMode) {
   modeLabel.hidden = false;
   statusLabel.textContent = 'Preview';
@@ -142,18 +161,36 @@ function renderLine(lineName, before, after) {
   line.after.textContent = after;
 }
 
-function measureTextAtBase(text) {
-  messageMeasure.style.fontSize = `${BASE_MESSAGE_FONT_SIZE}px`;
+function measureTextAtBase(text, baseSize = BASE_MESSAGE_FONT_SIZE) {
+  messageMeasure.style.fontSize = `${baseSize}px`;
   messageMeasure.textContent = text || ' ';
   return messageMeasure.getBoundingClientRect().width;
 }
 
 function fitMessage(...texts) {
   const candidates = texts.filter((text) => typeof text === 'string' && text.length > 0);
-  const widest = Math.max(...candidates.map(measureTextAtBase), 1) + CURSOR_ALLOWANCE;
+  const widest = Math.max(...candidates.map((text) => measureTextAtBase(text)), 1) + CURSOR_ALLOWANCE;
   const scale = Math.min(1, SAFE_CONTENT_WIDTH / widest);
   const fontSize = clamp(Math.floor(BASE_MESSAGE_FONT_SIZE * scale), MIN_MESSAGE_FONT_SIZE, BASE_MESSAGE_FONT_SIZE);
   messageFrame.style.setProperty('--message-font-size', `${fontSize}px`);
+  return fontSize;
+}
+
+function composeSingleLine(lead, time) {
+  return `${lead} ${time}`.trim();
+}
+
+function fitSingleLine(...texts) {
+  const candidates = texts.filter((text) => typeof text === 'string' && text.length > 0);
+  const widestTextAtBase = Math.max(
+    ...candidates.map((text) => measureTextAtBase(text, SINGLE_BASE_FONT_SIZE)),
+    1
+  );
+  const textWidthPerPixel = widestTextAtBase / SINGLE_BASE_FONT_SIZE;
+  const totalWidthPerPixel = textWidthPerPixel + SINGLE_CURSOR_EM_ALLOWANCE;
+  const exactSize = (SAFE_CONTENT_WIDTH - SINGLE_CURSOR_FIXED_WIDTH) / totalWidthPerPixel;
+  const fontSize = clamp(exactSize, SINGLE_MIN_FONT_SIZE, SINGLE_MAX_FONT_SIZE);
+  messageFrame.style.setProperty('--message-font-size', `${fontSize.toFixed(2)}px`);
   return fontSize;
 }
 
@@ -231,6 +268,20 @@ async function editLine(lineName, target, token) {
 }
 
 async function editMessage(targetLead, targetTime, token) {
+  if (singleLayout) {
+    const targetSingle = composeSingleLine(targetLead, targetTime);
+    fitSingleLine(lines.single.rendered, targetSingle);
+
+    if (!lines.single.rendered) await typeInitialLine('single', targetSingle, token);
+    else await editLine('single', targetSingle, token);
+
+    currentLeadText = targetLead;
+    currentTimeText = targetTime;
+    fitSingleLine(targetSingle);
+    setActiveCursor('single', false);
+    return;
+  }
+
   fitMessage(lines.lead.rendered, targetLead, lines.time.rendered, targetTime);
 
   if (!lines.lead.rendered && !lines.time.rendered) {
@@ -241,6 +292,8 @@ async function editMessage(targetLead, targetTime, token) {
     await editLine('time', targetTime, token);
   }
 
+  currentLeadText = targetLead;
+  currentTimeText = targetTime;
   fitMessage(targetLead, targetTime);
   setActiveCursor('time', false);
 }
@@ -350,8 +403,10 @@ document.addEventListener('visibilitychange', () => {
 });
 
 window.__clock = Object.freeze({
-  get renderedText() { return lines.time.rendered; },
-  get leadText() { return lines.lead.rendered; },
+  get renderedText() { return currentTimeText; },
+  get leadText() { return currentLeadText; },
+  get fullText() { return singleLayout ? lines.single.rendered : composeSingleLine(currentLeadText, currentTimeText); },
+  get layout() { return singleLayout ? 'single' : 'two-line'; },
   get activeMinuteKey() { return activeMinuteKey; },
   get messageFontSize() {
     return Number.parseFloat(getComputedStyle(messageFrame).getPropertyValue('--message-font-size'));
@@ -363,14 +418,36 @@ window.__clock = Object.freeze({
   },
   forcePhrase: async (target) => {
     const token = ++animationToken;
-    fitMessage(lines.lead.rendered, lines.time.rendered, String(target));
-    await editLine('time', String(target), token);
+    const value = String(target);
+    if (singleLayout) {
+      const combined = composeSingleLine(currentLeadText, value);
+      fitSingleLine(lines.single.rendered, combined);
+      await editLine('single', combined, token);
+      currentTimeText = value;
+      fitSingleLine(combined);
+      setActiveCursor('single', false);
+      return;
+    }
+    fitMessage(lines.lead.rendered, lines.time.rendered, value);
+    await editLine('time', value, token);
+    currentTimeText = value;
     setActiveCursor('time', false);
   },
   forceLead: async (target) => {
     const token = ++animationToken;
-    fitMessage(lines.lead.rendered, String(target), lines.time.rendered);
-    await editLine('lead', String(target), token);
+    const value = String(target);
+    if (singleLayout) {
+      const combined = composeSingleLine(value, currentTimeText);
+      fitSingleLine(lines.single.rendered, combined);
+      await editLine('single', combined, token);
+      currentLeadText = value;
+      fitSingleLine(combined);
+      setActiveCursor('single', false);
+      return;
+    }
+    fitMessage(lines.lead.rendered, value, lines.time.rendered);
+    await editLine('lead', value, token);
+    currentLeadText = value;
     setActiveCursor('time', false);
   },
   timeToPhrase
@@ -378,7 +455,7 @@ window.__clock = Object.freeze({
 
 async function startClock() {
   scaleStage();
-  setActiveCursor('lead', true);
+  setActiveCursor(singleLayout ? 'single' : 'lead', true);
 
   if (document.fonts?.ready) {
     try {

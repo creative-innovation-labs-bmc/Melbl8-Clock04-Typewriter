@@ -97,10 +97,38 @@ body {
   color: var(--text);
 }
 
+.single-line {
+  display: none;
+  color: var(--text);
+}
+
+.single-line[hidden] {
+  display: none;
+}
+
+body.layout-single .message-frame {
+  top: 112px;
+  height: 430px;
+  display: flex;
+  align-items: center;
+  overflow: visible;
+}
+
+body.layout-single .lead-line,
+body.layout-single .time-line {
+  display: none;
+}
+
+body.layout-single .single-line:not([hidden]) {
+  display: inline-flex;
+}
+
 .message-measure {
   position: absolute;
   left: -100000px;
   top: 0;
+  width: max-content;
+  max-width: none;
   visibility: hidden;
   pointer-events: none;
 }

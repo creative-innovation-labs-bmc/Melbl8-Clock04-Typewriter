@@ -1,6 +1,6 @@
 # Melbourne Typewriter Clock
 
-An original natural-language clock for the fixed **3840 × 804** Melbourne gallery screen. The display uses two equal-size sentence-case lines. The first line rotates through different ways of introducing the time, while the second line states the current Melbourne time.
+An original natural-language clock for the fixed **3840 × 804** Melbourne gallery screen. The default display uses two equal-size sentence-case lines. An optional single-line layout combines the lead-in and spoken time into one sentence that dynamically fills the complete safe width.
 
 The live text types on first load, then edits surgically at each minute change. Unchanged text remains in place while the cursor moves to the changed section, deletes it and types the replacement.
 
@@ -49,8 +49,9 @@ The first line uses a shuffled deck and does not repeat an option until all alte
 | `?time=18:06` | Locks the preview to a specific phrase. |
 | `?noanim=1` | Displays both lines immediately. |
 | `?debug=1` | Shows the production safe area and stage label. |
+| `?layout=single` | Displays the complete message on one dynamically fitted line. |
 
-Queries can be combined, for example `?demo=1&debug=1`.
+Queries can be combined, for example `?demo=1&layout=single` or `?time=11:29&noanim=1&layout=single`.
 
 ## NVIDIA Shield notes
 
@@ -58,7 +59,7 @@ Queries can be combined, for example `?demo=1&debug=1`.
 - Keep browser or page zoom at 100%.
 - The production canvas is always 3840 × 804 and scales only for non-production previews.
 - The page recalculates Melbourne time after browser visibility changes and signage reloads.
-- Only two text lines and one cursor animate, keeping the rendering workload low.
+- Only the active text line and cursor animate, keeping the rendering workload low.
 
 ## Quality control
 
@@ -79,4 +80,6 @@ The test suite checks:
 - additional cursor spacing;
 - mobile portrait prompt;
 - mobile landscape scaling;
-- live selective text replacement.
+- live selective text replacement;
+- single-line edge-to-edge fitting at native and mobile landscape sizes;
+- dynamic resizing for both short and long single-line sentences.

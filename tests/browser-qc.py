@@ -116,6 +116,51 @@ def main() -> None:
         }
         dynamic.close()
 
+        single = browser.new_page(viewport={"width": 3840, "height": 804}, device_scale_factor=1)
+        load(single, "?time=11:29&noanim=1&layout=single")
+        assert single.evaluate("window.__clock.layout") == "single"
+        assert single.locator("#singleLine").is_visible()
+        assert not single.locator("#leadLine").is_visible()
+        assert not single.locator("#timeLine").is_visible()
+        single_bounds = bounds(single, "#singleLine")
+        single_stage = bounds(single, "#stage")
+        assert single_bounds["x"] >= 159
+        assert 3660 <= single_bounds["x"] + single_bounds["width"] <= 3692
+        assert single_bounds["y"] > 100
+        assert single_bounds["y"] + single_bounds["height"] < 620
+        single.screenshot(path=str(OUT / "single-native-3840x804.png"), full_page=True)
+
+        initial_single_size = single.evaluate("window.__clock.messageFontSize")
+        single.evaluate("window.__clock.forceLead('The clock says')")
+        single.wait_for_function("window.__clock.leadText === 'The clock says'")
+        single.evaluate("window.__clock.forcePhrase('Noon')")
+        single.wait_for_function("window.__clock.renderedText === 'Noon'")
+        short_bounds = bounds(single, "#singleLine")
+        short_single_size = single.evaluate("window.__clock.messageFontSize")
+        assert short_single_size > initial_single_size
+        assert short_bounds["x"] >= 159
+        assert 3660 <= short_bounds["x"] + short_bounds["width"] <= 3692
+        results["single_line"] = {
+            "stage": single_stage,
+            "initial_bounds": single_bounds,
+            "short_bounds": short_bounds,
+            "initial_font_size": initial_single_size,
+            "short_font_size": short_single_size,
+        }
+        single.close()
+
+        single_landscape = browser.new_page(viewport={"width": 844, "height": 390}, device_scale_factor=1)
+        load(single_landscape, "?time=18:06&noanim=1&layout=single")
+        assert single_landscape.locator("#singleLine").is_visible()
+        single_landscape_stage = bounds(single_landscape, "#stage")
+        assert single_landscape_stage["x"] >= -1
+        assert single_landscape_stage["y"] >= -1
+        assert single_landscape_stage["x"] + single_landscape_stage["width"] <= 845
+        assert single_landscape_stage["y"] + single_landscape_stage["height"] <= 391
+        single_landscape.screenshot(path=str(OUT / "single-mobile-landscape.png"), full_page=True)
+        results["single_mobile_landscape"] = single_landscape_stage
+        single_landscape.close()
+
         browser.close()
 
     (OUT / "results.json").write_text(json.dumps(results, indent=2), encoding="utf-8")
