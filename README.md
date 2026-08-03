@@ -53,3 +53,14 @@ The test suite checks:
 - mobile portrait prompt;
 - mobile landscape scaling;
 - live selective text replacement.
+
+### Completed QC, 3 August 2026
+
+- 5 of 5 unit tests passed.
+- All 1,440 phrases passed spelling and formatting checks.
+- All consecutive minute transitions reconstructed the correct target phrase.
+- Native Chromium layout measured exactly 3840 × 804.
+- The representative long phrase stayed inside the 160 px safe margins at full size.
+- iPhone portrait displayed the rotate prompt.
+- Mobile landscape scaled the entire gallery canvas inside the viewport.
+- A live 6:06 to 6:07 transition isolated and preserved ` MINUTES PAST SIX`, deleted only `IX`, then typed `EVEN`.
